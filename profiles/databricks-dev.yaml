@@ -1,0 +1,5 @@
+INGEST_TABLE: "mlops_test.default.rc_test_data"
+   TARGET_COL: "target"
+   PRIMARY_METRIC: "root_mean_squared_error"
+   METRIC_THRESHOLD: 1000000
+   REGISTERED_MODEL_NAME: "mlops_test.catlog_models.randomforestregressor"

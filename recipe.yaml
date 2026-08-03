@@ -1,0 +1,28 @@
+recipe: "classification/v1"        # or "regression/v1"
+target_col: "{{ TARGET_COL }}"
+primary_metric: "{{ PRIMARY_METRIC|default('f1_score') }}"
+
+steps:
+  ingest:
+    using: "{{ INGEST_FORMAT|default('spark_sql') }}"
+    location: "{{ INGEST_TABLE }}"
+
+  split:
+    split_ratios: {{ SPLIT_RATIOS|default([0.75, 0.125, 0.125]) }}
+
+  transform:
+    using: custom
+    transformer_method: transformer_fn
+
+  train:
+    using: custom 
+    estimator_method: estimator_fn
+
+  evaluate:
+    validation_criteria:
+      - metric: "{{ PRIMARY_METRIC|default('f1_score') }}"
+        threshold: {{ METRIC_THRESHOLD|default(0.75) }}
+
+  register:
+    model_name: "{{ REGISTERED_MODEL_NAME }}"
+    allow_non_validated_model: false
