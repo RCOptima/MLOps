@@ -13,10 +13,10 @@ def train(data_path: str, model_name: str, n_estimators: int = 100):
         mlflow.log_metric("train_accuracy", model.score(X, y))
         mlflow.sklearn.log_model(model, "model")
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data_path", required=True)
-    parser.add_argument("--model_name", required=True)
-    parser.add_argument("--n_estimators", type=int, default=100)
-    args = parser.parse_args()
-    train(args.data_path, args.model_name, args.n_estimators)
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("--data_path", required=True)
+#     parser.add_argument("--model_name", required=True)
+#     parser.add_argument("--n_estimators", type=int, default=100)
+#     args = parser.parse_args()
+#     train(args.data_path, args.model_name, args.n_estimators)
