@@ -1,0 +1,238 @@
+# databricks.yml
+# Databricks Asset Bundle (DAB) definition for the MLOps capstone pipeline.
+# Replaces the MLflow Recipes `recipe.yaml` runner (removed in MLflow 3.x)
+# with a native Databricks Jobs DAG. Each Recipes "step" becomes a job "task".
+#
+# Deploy with:   databricks bundle deploy -t dev
+# Run with:      databricks bundle run mlops_capstone_pipeline -t dev
+ 
+bundle:
+  name: mlops-framework
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-1562028782168508.8.azuredatabricks.net
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-1562028782168508.8.azuredatabricks.net
+      # We always use /Users/ross.campbell@optimapartners.co.uk for all resources to make sure we only have a single copy.
+      root_path: /Users/ross.campbell@optimapartners.co.uk/.bundle/${bundle.name}/${bundle.target}
+    run_as:
+      # This runs as ross.campbell@optimapartners.co.uk in production. We could also use a service principal here,
+      # see https://docs.databricks.com/dev-tools/bundles/permissions.html.
+      user_name: ross.campbell@optimapartners.co.uk
+
+variables: # i think most of these shold be in where the jobs places right as this is configurable
+  catalog:
+    description: Unity Catalog catalog to register models into
+    default: mlops_test
+  schema:
+    description: Unity Catalog schema for the model
+    default: capstone
+  # table_ingest:
+  #   description: Name of delta table you want to save at ingest
+  #   default: bronze_raw
+  raw_data:
+    description: Where the raw data is located
+    default: ${var.catalog}.default.rc_test_data
+  ingested_data_path: # id think that path is the best name here
+    description: Path to table that ingest.py saves to
+    default: ${var.catalog}.${var.schema}.bronze
+  train_table_bronze: 
+    description: Name of delta table for training data before transformation
+    default: bronze_train
+  train_table_silver:
+    description: Name of delta table for training data after transformation
+    default: ${var.catalog}.${var.schema}.silver_train
+  test_table_silver:
+    description: Name of delta table to save test data
+    default: ${var.catalog}.${var.schema}.silver_test
+  val_table_silver:
+    description: Name of delta table to save validate data
+    default: ${var.catalog}.${var.schema}.silver_val
+  model_name:
+    description: Name of the model we are using
+    default: ${var.catalog}.${var.schema}.capstone_model
+  git_branch:
+    default: main
+  target_col:
+    default: label
+  split_ratios:
+    default: "0.75,0.125,0.125"
+  validate:
+    default: true
+  primary_metric:
+    description: Primary metric used to evaluate the model
+    default: mse
+# ---------------------------------------------------------------------------
+# Targets: mirrors what your databricks-dev.yaml was doing for the dev env.
+# Add a "prod" target the same way when you're ready for the deploy step.
+# ---------------------------------------------------------------------------
+ 
+resources:
+  jobs:
+    mlops_framework_pipeline:
+      name: mlops-framework-pipeline
+      tags:
+        project: mlops-framework
+
+      # environments:
+      #   - environment_key: default
+      #     spec:
+      #       environment_version: "2"
+      #       dependencies:
+      #         - -r /Workspace/Users/ross.campbell@optimapartners.co.uk/MLOps_framework/requirements.txt
+      # git_source lets the job pull straight from your repo instead of
+      # relying on manually synced workspace files.
+      # git_source:
+      #   git_url: <your-repo-url>
+      #   git_provider: gitHub
+      #   git_branch: ${var.git_branch}
+ 
+      # job_clusters:
+      #   - job_cluster_key: main_cluster
+      #     new_cluster:
+      #       spark_version: 17.3.x-cpu-ml-scala2.13
+      #       node_type_id: Standard_DS3_v2
+      #       num_workers: 2
+ 
+      # -----------------------------------------------------------------
+      # Task DAG: ingest -> split -> transform -> train -> register
+      # This is the same dependency order Recipes inferred from its
+      # step definitions; here it's explicit via `depends_on`.
+      # -----------------------------------------------------------------
+      tasks:
+        - task_key: ingest
+          # job_cluster_key: main_cluster
+          # environment_key: default
+          existing_cluster_id: 0806-135457-eba3ndta
+          spark_python_task:
+            python_file: steps/ingest.py
+            parameters: 
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema"
+              - "${var.schema}"
+              - "--raw_data"
+              - ${var.raw_data} # config
+              - "--ingested_data_path"
+              - ${var.ingested_data_path}
+
+        - task_key: split
+          depends_on:
+            - task_key: ingest
+          # job_cluster_key: main_cluster
+          existing_cluster_id: 0806-135457-eba3ndta
+          # environment_key: default
+          spark_python_task:
+            python_file: steps/split.py
+            parameters:
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema"
+              - "${var.schema}"
+              - "--train_table_bronze"
+              - "${var.train_table_bronze}"
+              - "--test_table_silver"
+              - "${var.test_table_silver}"
+              - "--ingested_data_path"
+              - "${var.ingested_data_path}"
+              - "--val_table"
+              - "${var.val_table_silver}"
+              - "--validate"
+              - "${var.validate}"
+              - "--split_ratios"
+              - "${var.split_ratios}"
+ 
+        - task_key: transform
+          depends_on:
+            - task_key: split
+          # job_cluster_key: main_cluster
+          existing_cluster_id: 0806-135457-eba3ndta
+          # environment_key: default
+          spark_python_task:
+            python_file: steps/transform.py
+            parameters:
+              - "--train_table_bronze"
+              - "${var.train_table_bronze}"
+              - "--train_table_silver"
+              - "${var.train_table_silver}"
+ 
+        - task_key: train
+          depends_on:
+            - task_key: transform
+          # job_cluster_key: main_cluster
+          existing_cluster_id: 0806-135457-eba3ndta
+          # environment_key: default
+          spark_python_task:
+            python_file: steps/train.py
+            parameters:
+              - "--train_table_silver"
+              - "${var.train_table_silver}"
+              - "--val_table_silver"
+              - "${var.val_table_silver}"
+              - "--model_name"
+              - "${var.model_name}"
+              - "--validate"
+              - "${var.validate}"
+ 
+        - task_key: evaluate
+          depends_on: [{task_key: train}]
+          # job_cluster_key: main_cluster
+          existing_cluster_id: 0806-135457-eba3ndta
+          # environment_key: default
+          spark_python_task:
+            python_file: steps/evaluate.py
+            parameters:
+            - "--primary_metric"
+            - "${var.primary_metric}"
+            - "--threshold"
+            - "0.75"
+            - "--experiment_id"
+            - "{{tasks.train.values.experiment_id}}"
+            - "--batch_id"
+            - "{{tasks.train.values.batch_id}}"
+            - "--test_table_silver"
+            - "${var.test_table_silver}"
+  
+        - task_key: register
+          depends_on:
+            - task_key: evaluate
+          # job_cluster_key: main_cluster
+          # environment_key: default
+          existing_cluster_id: 0806-135457-eba3ndta
+          spark_python_task:
+            python_file: steps/register.py
+            parameters: ["--model_name", "${var.model_name}"]
+ 
+        # New tasks vs. your current setup — these are what Recipes never
+        # gave you a clean way to do, but the capstone deliverables ask for:
+        # - task_key: deploy
+        #   depends_on:
+        #     - task_key: register
+        #   job_cluster_key: main_cluster
+        #   spark_python_task:
+        #     python_file: ../steps/deploy.py
+        #     parameters: ["--model_name", "${var.model_name}"]
+ 
+        # - task_key: monitor
+        #   depends_on:
+        #     - task_key: deploy
+        #   job_cluster_key: main_cluster
+        #   spark_python_task:
+        #     python_file: ../steps/monitor.py
+        #     parameters: ["--model_name", "${var.model_name}"]
+ 
+ 
+      # email_notifications:
+      #   on_failure:
+      #     - <your-email>@example.com
