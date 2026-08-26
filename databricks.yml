@@ -72,7 +72,7 @@ variables: # i think most of these shold be in where the jobs places right as th
     default: true
   primary_metric:
     description: Primary metric used to evaluate the model
-    default: mse
+    default: rmse
 # ---------------------------------------------------------------------------
 # Targets: mirrors what your databricks-dev.yaml was doing for the dev env.
 # Add a "prod" target the same way when you're ready for the deploy step.
@@ -196,13 +196,15 @@ resources:
             - "--primary_metric"
             - "${var.primary_metric}"
             - "--threshold"
-            - "0.75"
+            - "5000" #TODO: CHANGE
             - "--experiment_id"
             - "{{tasks.train.values.experiment_id}}"
             - "--batch_id"
             - "{{tasks.train.values.batch_id}}"
             - "--test_table_silver"
             - "${var.test_table_silver}"
+            - "--model_name"
+            - "${var.model_name}"
   
         - task_key: register
           depends_on:
@@ -212,7 +214,15 @@ resources:
           existing_cluster_id: 0806-135457-eba3ndta
           spark_python_task:
             python_file: steps/register.py
-            parameters: ["--model_name", "${var.model_name}"]
+            parameters: 
+              - "--model_name"
+              - "${var.model_name}"
+              - "--primary_metric"
+              - "${var.primary_metric}"
+              - "--challenger_score"
+              - "{{tasks.evaluate.values.challenger_score}}"
+              - "--greater_is_better"
+              - "{{tasks.evaluate.values.greater_is_better}}"
  
         # New tasks vs. your current setup — these are what Recipes never
         # gave you a clean way to do, but the capstone deliverables ask for:
