@@ -129,24 +129,6 @@ def train(silver_train_table: str, silver_val_table: str, model_name: str, valid
                 name=f"model", # config?
                 input_example=X_train
             )
-            # result = {
-            #     "params": params,
-            #     "model": model,
-            #     "metrics": metrics,
-            #     "run_id": mlflow.active_run().info.run_id
-            # }
-            # logger.info(result)
-            # results.append(result)
-
-    # optimisation_metric = 'rmse' # config this
-    # greater_is_better = False # and this
-
-    # if greater_is_better:
-    #     best = max(results, key=lambda x: x["metrics"][optimisation_metric])
-    # else:
-    #     best = min(results,key=lambda x: x["metrics"][optimisation_metric])
-
-    # best_run_id = best['run_id']
     
 
 
