@@ -15,7 +15,7 @@ from pyspark.sql import SparkSession
 from itertools import product
 import logging
 
-logger = logging.getLogger("split")
+logger = logging.getLogger("train")
 logger.setLevel(logging.INFO)
 
 handler = logging.StreamHandler()
