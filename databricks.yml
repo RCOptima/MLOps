@@ -238,13 +238,21 @@ resources:
               - "--schema"
               - "${var.schema}"
  
-        # - task_key: monitor
-        #   depends_on:
-        #     - task_key: deploy
-        #   job_cluster_key: main_cluster
-        #   spark_python_task:
-        #     python_file: ../steps/monitor.py
-        #     parameters: ["--model_name", "${var.model_name}"]
+        - task_key: monitor
+          depends_on:
+            - task_key: deploy
+          existing_cluster_id: 0806-135457-eba3ndta
+          spark_python_task:
+            python_file: steps/monitor.py
+            parameters: 
+              - "--model_name"
+              - "${var.model_name}"
+              - "--catalog"
+              - "${var.catalog}"
+              - "--schema"
+              - "${var.schema}"
+              - "--val_table_silver"
+              - "${var.val_table_silver}"
  
  
       # email_notifications:
