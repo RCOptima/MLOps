@@ -1,0 +1,15 @@
+module: "trainers.churn_trainer"
+class: "ChurnTrainer"
+
+# primary metric the validation scores rmse, mse, 
+primary_metric: "rmse"
+
+# number of iterations to find best parameters
+n_trials: 10
+
+experiment_path: "/Workspace/Users/ross.campbell@optimapartners.co.uk/pilot"
+
+# column name that is the one you want to predict
+target_col: "target" 
+# optional
+# threshold: 

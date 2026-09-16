@@ -11,9 +11,7 @@ from databricks.sdk.service.serving import (
 from databricks.sdk.service.catalog import MonitorInferenceLog, MonitorInferenceLogProblemType
 from databricks.sdk.errors import NotFound
 from pyspark.sql import SparkSession
- 
-from deploy import endpoint_name_for
- 
+  
 logger = logging.getLogger("monitor")
 logger.setLevel(logging.INFO)
  
@@ -35,7 +33,7 @@ def setup_monitoring(model_name, catalog_name, schema_name, val_table, endpoint_
     spark = SparkSession.builder.getOrCreate()
     w = WorkspaceClient()
  
-    endpoint_name = endpoint_name or endpoint_name_for(model_name)
+    endpoint_name = endpoint_name
     try:
         w.serving_endpoints.put_ai_gateway(
             name=endpoint_name,
@@ -113,8 +111,8 @@ if __name__ == "__main__":
     p.add_argument("--model_name", required=True)
     p.add_argument("--catalog", required=True)
     p.add_argument("--schema", required=True)
-    p.add_argument("--val_table_silver", required=True)
-    # p.add_argument("--endpoint_name", required=False, default=None)
+    p.add_argument("--val_table", required=True)
+    p.add_argument("--endpoint_name", required=False, default=None)
     args = p.parse_args()
-    setup_monitoring(args.model_name, args.catalog, args.schema, args.val_table_silver) # , args.endpoint_name)
+    setup_monitoring(args.model_name, args.catalog, args.schema, args.val_table, args.endpoint_name)
  

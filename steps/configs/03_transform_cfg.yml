@@ -1,0 +1,2 @@
+module: "trainers.churn_transformer"
+class: "Transformer"

@@ -38,7 +38,7 @@ def wait_for_ready(deploy_client, endpoint_name, timeout_s=600, poll_interval_s=
         ready = state.get("ready")
         config_update = state.get("config_update")
  
-        logger.info(f"  endpoint state: ready={ready}, config_update={config_update}")
+        logger.info(f"endpoint state: ready={ready}, config_update={config_update}")
  
         if ready == "READY" and config_update in (None, "NOT_UPDATING"):
             return endpoint
@@ -53,6 +53,8 @@ def deploy(model_name, catalog_name, schema_name):
     deploy_client = get_deploy_client("databricks")
     champion_version = mlflow_client.get_model_version_by_alias(model_name, "champion").version
     endpoint_name = endpoint_name_for(model_name)
+    dbutils.jobs.taskValues.set(key="endpoint_name", value=endpoint_name)
+
     config = build_config(model_name, champion_version, catalog_name, schema_name)
 
     try:
