@@ -1,0 +1,6 @@
+project_name: example_project
+
+registered_model_name: "churn_model"
+
+# global random state, individual random states will be overwrite this one
+random_state: "42"

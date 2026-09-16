@@ -1,0 +1,8 @@
+dataset_name: test_dataset
+ 
+source:
+  type: uc_table                 # delta_table | uc_table | parquet | csv
+  path: "mlops_test.default.rc_test_data"
+  # options: # only used for csv files
+  #   header: true
+  #   inferSchema: true

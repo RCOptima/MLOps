@@ -1,0 +1,6 @@
+# train,validation,test
+split_ratios: "0.75,0.125,0.125"
+
+validate: true
+# random_state: 42
+shuffle: true

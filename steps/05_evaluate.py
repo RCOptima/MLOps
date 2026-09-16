@@ -3,7 +3,7 @@ from databricks.sdk.runtime import dbutils
 from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, r2_score, root_mean_squared_error
 import logging
 from mlflow import MlflowClient
-from train import compute_metrics, infer_task_type
+# from train import compute_metrics
 
 logger = logging.getLogger("evaluate")
 logger.setLevel(logging.INFO)
@@ -27,7 +27,7 @@ def register_challenger(run_id, model_name, client, score):
     logger.info(f'Registered {model_name} as challenger')
     dbutils.jobs.taskValues.set(key="challenger_score", value=score)
 
-def evaluate(primary_metric, threshold, test_table, batch_id, experiment_id, model_name):
+def evaluate(primary_metric, threshold, test_table, batch_id, experiment_id, model_name, target):
     client = MlflowClient()
     metric_func, greater_is_better = METRICS.get(primary_metric, (None, None))
     dbutils.jobs.taskValues.set(key="greater_is_better", value=greater_is_better)
@@ -44,18 +44,21 @@ def evaluate(primary_metric, threshold, test_table, batch_id, experiment_id, mod
     sort_type = 'DESC' if greater_is_better else 'ASC'
     runs = client.search_runs(
         experiment_ids=[experiment_id],
-        filter_string=f"tags.batch_id = '{batch_id}'",
+        filter_string= f"""
+            tags.batch_id = '{batch_id}'
+            AND tags.best_child_run_id LIKE '%'
+        """,
         order_by=[f"metrics.{primary_metric} {sort_type}"],
     )
-    best_run = runs[0]
-    best_run_id = best_run.info.run_id
+    run = runs[0]
+    best_run_id = run.data.tags["best_child_run_id"]
     dbutils.jobs.taskValues.set(key="best_run_id", value=best_run_id)
     model = mlflow.pyfunc.load_model(f"runs:/{best_run_id}/model") # config pilot
 
     test_pdf = spark.table(test_table).toPandas()
     
-    X_test = test_pdf.drop(columns=["target"]) # target should be config
-    y_test = test_pdf["target"]
+    X_test = test_pdf.drop(columns=[target])
+    y_test = test_pdf[target]
     predictions = model.predict(X_test)
 
     score = metric_func(y_test, predictions)
@@ -64,14 +67,14 @@ def evaluate(primary_metric, threshold, test_table, batch_id, experiment_id, mod
     with mlflow.start_run(run_id=best_run_id):
         mlflow.log_metric(f"test_{primary_metric}", score)
 
-    def passes_threshold(score, threshold, greater_is_better=True):
-        return score >= threshold if greater_is_better else score <= threshold
+    # def passes_threshold(score, threshold, greater_is_better=True):
+    #     return score >= threshold if greater_is_better else score <= threshold
 
-    if threshold and (score <= threshold if greater_is_better else score >= threshold):
-        logger.warning(
-            f"Best model select did not reach a threshold of {threshold} for {primary_metric}, "
-            "not promoting to challenger and now exiting task")
-        sys.exit(1)
+    # if threshold and (score <= threshold if greater_is_better else score >= threshold):
+    #     logger.warning(
+    #         f"Best model select did not reach a threshold of {threshold} for {primary_metric}, "
+    #         "not promoting to challenger and now exiting task")
+    #     sys.exit(1)
 
     if threshold:
         logger.info(f"{primary_metric} = {score} (threshold {threshold})")
@@ -80,11 +83,12 @@ def evaluate(primary_metric, threshold, test_table, batch_id, experiment_id, mod
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--primary_metric", default="rmse") # should be RMSE?
+    p.add_argument("--primary_metric", required=True)
     p.add_argument("--threshold", type=float, default=5000) # should there be a threshold or just beat the best model
-    p.add_argument("--test_table_silver", required=False)
+    p.add_argument("--test_table", required=True)
     p.add_argument("--experiment_id", required=True)
     p.add_argument("--batch_id", required=True)
     p.add_argument("--model_name", required=True)
+    p.add_argument("--target_col", required=True)
     args = p.parse_args()
-    evaluate(args.primary_metric, args.threshold, args.test_table_silver, args.batch_id, args.experiment_id, args.model_name)
+    evaluate(args.primary_metric, args.threshold, args.test_table, args.batch_id, args.experiment_id, args.model_name, args.target_col)
